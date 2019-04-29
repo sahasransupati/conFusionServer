@@ -1,5 +1,6 @@
 var express = require('express');
 var userRouter = express.Router();
+var passport = require('passport');
 
 const bodyParser = require('body-parser');
 var User = require('../models/users');
@@ -7,39 +8,30 @@ var User = require('../models/users');
 userRouter.use(bodyParser.json());
 
 userRouter.post('/signup', (req, res, next) => {
-  User.findOne({username: req.body.username})
-  .then((user) => {
-    if(user != null) {
-      var err = new Error('User ' + req.body.username + ' already exists!');
-      err.status = 403;
-      next(err);
+  User.register(new User({username: req.body.username}), 
+    req.body.password, (err, user) => {
+    if(err) {
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.json({err: err});
     }
     else {
-      return User.create({
-        username: req.body.username,
-        password: req.body.password});
+      passport.authenticate('local')(req, res, () => {
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.json({success: true, status: 'Registration Successful!'});
+      });
     }
-  })
-  .then((user) => {
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.json({status: 'Registration Successful!', user: user});
-  }, (err) => next(err))
-  .catch((err) => next(err));
+  });
 });
 
-userRouter.post('/login', (req, res, next) => {
-
-  if(!req.session.user) {
-    var authHeader = req.headers.authorization;
-    
-    if (!authHeader) {
-      var err = new Error('You are not authenticated!');
-      res.setHeader('WWW-Authenticate', 'Basic');
-      err.status = 401;
-      return next(err);
-    }
+userRouter.post('/login', passport.authenticate('local'), (req, res) => {
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/json');
+  res.json({success: true, status: 'You are successfully logged in!'});
+});
   
+/*
     var auth = new Buffer.from(authHeader.split(' ')[1], 'base64').toString().split(':');
     var username = auth[0];
     var password = auth[1];
@@ -71,6 +63,7 @@ userRouter.post('/login', (req, res, next) => {
     res.end('You are already authenticated!');
   }
 })
+*/
 
 userRouter.get('/logout', (req, res) => {
   if (req.session) {
